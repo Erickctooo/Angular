@@ -1,10 +1,20 @@
 import { HttpClient } from "@angular/common/http";
-import { computed, inject, Injectable, signal } from "@angular/core";
+import { computed, effect, inject, Injectable, signal } from "@angular/core";
 import { environment } from "@environments/environment";
 import type{ GiphyResponse } from "../interfaces/giphy.interface";
 import type{ Gif } from "../interfaces/gif.interface";
 import { GifMapper } from "../mapper/gif.mapper";
-import { map, tap } from "rxjs";
+import { map, Observable, tap } from "rxjs";
+
+const GIF_KEY = 'gifs';
+
+const loadFromLocalStorage = () => {
+  const gifsFromLocalStorage = localStorage.getItem(GIF_KEY) ?? '{}';
+  const gifs = JSON.parse(gifsFromLocalStorage);
+  console.log(gifs)
+  return gifs;
+
+};
 
 @Injectable({providedIn: 'root'})
 export class GifService{
@@ -13,18 +23,25 @@ export class GifService{
 
   trendingGifs = signal<Gif[]>([])
   trendingGifsLoading = signal(true);
+
+
  // searchHistory: diccionario (objeto) donde cada búsqueda (string) guarda su lista de gifs (Gif[]).
-searchHistory = signal<Record<string, Gif[]>>({});
+  searchHistory = signal<Record<string, Gif[]>>(loadFromLocalStorage());
 
-// searchHistoryKeys: obtiene las “llaves” del diccionario (los términos buscados) como un array de strings.
-searchHistoryKeys = computed(() => Object.keys(this.searchHistory()));
-
+  // searchHistoryKeys: obtiene las “llaves” del diccionario (los términos buscados) como un array de strings.
+  searchHistoryKeys = computed(() => Object.keys(this.searchHistory()));
 
 
   constructor(){
     this.loadTrendingGifs();
     console.log("Servicio Creado.")
   }
+
+  saveGifsToLocalStorage = effect(() =>{
+    const historyString = JSON.stringify(this.searchHistory());
+    localStorage.setItem( GIF_KEY, historyString);
+  });
+
 
   loadTrendingGifs(){
 
@@ -42,7 +59,7 @@ searchHistoryKeys = computed(() => Object.keys(this.searchHistory()));
 
   }
 
-  searchGifs(query: string){
+  searchGifs(query: string): Observable <Gif[]> {
 
     return this.http.get<GiphyResponse>(`${ environment.giphyUrl }/gifs/search`,{
       params: {
@@ -63,5 +80,9 @@ searchHistoryKeys = computed(() => Object.keys(this.searchHistory()));
         }));
       })
     );
+  }
+
+  getHistoryGifs( query: string): Gif[]{
+    return this.searchHistory()[query] ?? [];
   }
 }
